@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""
-Simple LCD20x4 Display Viewer — PySide6
-- Receives UDP packets (type='lcd20x4') and displays them like a 20x4 LCD
-- Menu: set background color, text color, and font
-- Footer: "Copyright 2025 Darkone83 -=- Team Resurgent"
-- Defaults: black background, white text
-- Settings auto-load/save from lcd_viewer.ini (same folder as script)
-"""
 
 import json
 import socket
