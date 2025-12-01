@@ -67,7 +67,28 @@ If compilation fails, verify the board package version and that ESPAsyncWebServe
 ---
 
 ## Hardware Installation
-(To be completed by the user.)
+
+Transmitter:
+
+Its recommented to wire directly to the LPC if your XBOX and to keep the wire runs as short as possible
+
+| Pin | Transmiter | XBOX LPC |
+|-----|------------|----------|
+|  1  |     5V     | 5V Pin 6 |
+|  2  |    GND     | GND Pin 2 or 12 |
+|  3  |   3.3V     | 3.3V Pin 9 or 13 |
+|  4  |    SDA     | SDA Pin 14 |
+|  5  |    SCL     | SCL Pin 13 |
+
+Reciever:
+
+**Notes:** IF getting your OWN PCB's made select 1.0mm thickness for the US2066 backpack; otherwise, you may have fitment issues
+
+Solder your backpack to the display, then connect 5V and GND to the controller port
+
+When inserting into the case please take note of the TPU spacer placement
+
+<img src="https://github.com/Darkone83/Theia/blob/main/images/TPU%20placement.jpg" width=400>
 
 ## Getting Started
 
