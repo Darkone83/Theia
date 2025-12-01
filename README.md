@@ -76,12 +76,26 @@ If compilation fails, verify the board package version and that ESPAsyncWebServe
 3. Connect to the access point:
    Type D OLED EMU Setup
 4. Open a browser and go to:
-   http://oledemu.local, or http://192.168.4.1
+   http://oledemu.local, or http://192.168.4.1 for the Transmitter, for the Receiver go to: http://oledemurec.local, ot http://192.168.4.1
 5. Save Wi-Fi credentials.
 6. After connecting:
    Web Emulator: http://oledemu.local/emu
    JSON State:   http://oledemu.local/emu/state
-   OTA Update:   http://olecemu.local/ota
+   OTA Update:   http://oledemu.local/ota
+
+### XBOX Settings
+
+PrometheOS:
+
+Select SMBUS, HD47880 and set address to 0x3C (all other settings can be left alone)
+
+Cerbios:
+
+Select SMBUS, HD47880 and set address to 0x3C (all other settings can be left alone)
+
+XBMC4Gamers:
+
+Select SMBUS, HD47880 and set address to 0x3C (all other settings can be left alone)
 
 ## UDP Output
 
