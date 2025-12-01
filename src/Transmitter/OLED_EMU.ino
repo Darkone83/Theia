@@ -2,8 +2,8 @@
 #include "led_stat.h"
 #include <Wire.h>
 #include "lcd_monitor.h"
-#include <ESPmDNS.h>
 #include "web_emu.h"
+#include <ESPmDNS.h>
 
 // ====== Hardware pins ======
 #ifndef I2C_SDA_PIN
@@ -24,10 +24,9 @@ void setup() {
   WiFiMgr::begin();
 
   LCDMonitor::begin(I2C_SDA_PIN, I2C_SCL_PIN);
-
-  Serial.println("[Main] Theia OLED Emulator started.");
-
   WebEmu::begin();
+
+  Serial.println("[Main] Thiea OLED Emulator started.");
 }
 
 void loop() {
@@ -49,8 +48,6 @@ void loop() {
   if (WiFiMgr::isConnected()) {
     LCDMonitor::loop();
   }
-
   WebEmu::loop();
-
   delay(1);
 }

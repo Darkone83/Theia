@@ -6,8 +6,8 @@
 #include "led_stat.h"
 #include <vector>
 #include "esp_wifi.h"
-#include <Update.h> 
-#include "lcd_monitor.h" 
+#include <Update.h> // For OTA
+#include "lcd_monitor.h" // <-- for emulator enable/disable
 
 static AsyncWebServer server(80);
 namespace WiFiMgr {
@@ -71,10 +71,11 @@ void startPortal() {
     WiFi.disconnect(true);
     delay(100);
     setAPConfig();
-    WiFi.mode(WIFI_AP_STA); 
+    WiFi.mode(WIFI_AP_STA);  // AP+STA for S3 (portal)
     delay(100);
 
-    bool apok = WiFi.softAP("Theia OLED EMU Setup", "", 6, 0);
+    // Use channel 6 for iOS compatibility
+    bool apok = WiFi.softAP("Type D OLED EMU Setup", "", 6, 0);
     esp_wifi_set_max_tx_power(20);
     LedStat::setStatus(LedStatus::Portal);
     Serial.printf("[WiFiMgr] softAP result: %d, IP: %s\n", apok, WiFi.softAPIP().toString().c_str());
@@ -83,7 +84,10 @@ void startPortal() {
     IPAddress apIP = WiFi.softAPIP();
     dnsServer.start(53, "*", apIP);
 
-    server.reset();
+    server.reset(); // avoid duplicate routes on restart
+
+    // Allow cross-origin (Electron/file:// webviews)
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
         const bool emuOn = LCDMonitor::isEmulatorEnabled();
@@ -106,7 +110,6 @@ void startPortal() {
         .row {display:flex;gap:10px;align-items:center;}
         .row > * {flex:1;}
         .pill {display:inline-block;padding:.35em .6em;border-radius:999px;background:#333;border:1px solid #555;font-size:.85em;margin-left:6px;}
-        /* Switch */
         .switch {position: relative; display: inline-block; width: 52px; height: 28px; vertical-align:middle;}
         .switch input {opacity: 0; width: 0; height: 0;}
         .slider {position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .2s; border-radius: 28px;}
@@ -120,7 +123,7 @@ void startPortal() {
 <body>
     <div class="container">
         <div style="width:100%;text-align:center;margin-bottom:1em">
-            <span style="font-size:1.6em;font-weight:bold;">Theia OLED Emulator Setup</span>
+            <span style="font-size:1.6em;font-weight:bold;">Type D OLED Emulator Setup</span>
         </div>
 
         <div class="section">
@@ -128,7 +131,7 @@ void startPortal() {
                 <div style="flex:unset"><b>LCD Emulator</b><span id="emuState" class="pill">...</span></div>
                 <div style="flex:unset" id="emuSwitchHolder">__EMU_SWITCH__</div>
             </div>
-            <div class="small">Toggle the US2066 emulator (I2C slave at 0x3C) on/off without reboot. Disabling releases the I2C bus.</div>
+            <div class="small">Toggle the US2066 emulator (I²C slave at 0x3C) on/off without reboot. Disabling releases the I²C bus.</div>
         </div>
 
         <div class="section">
@@ -147,6 +150,9 @@ void startPortal() {
                 <div class="row">
                     <button type="button" onclick="window.location='/ota'" class="btn-ota">OTA Update</button>
                     <button type="button" onclick="window.location='/emu'" class="btn-web">Web View</button>
+                </div>
+                <div class="row">
+                    <button type="button" onclick="fetch('/udp/ping',{method:'POST'}).then(r=>r.text()).then(t=>alert(t)).catch(()=>alert('Ping failed'))" class="btn-web">Test UDP Ping</button>
                 </div>
             </form>
             <div class="status" id="status">Status: ...</div>
@@ -224,7 +230,6 @@ void startPortal() {
                 document.getElementById('pass').value = '';
             });
         }
-        // inject switch markup (kept inlined server-side for minimal templating)
         document.getElementById('emuSwitchHolder').innerHTML = `)rawliteral";
         page += htmlSwitch(emuOn);
         page += R"rawliteral(`.replace('__EMU_SWITCH__','');
@@ -235,6 +240,7 @@ void startPortal() {
         request->send(200, "text/html", page);
     });
 
+    // === OTA PAGE ===
     server.on("/ota", HTTP_GET, [](AsyncWebServerRequest *request){
         String page = R"rawliteral(
 <!DOCTYPE html>
@@ -299,14 +305,13 @@ void startPortal() {
         request->send(200, "text/html", page);
     });
 
+    // === OTA FIRMWARE UPLOAD HANDLER (chunked) ===
     server.on("/update", HTTP_POST,
-        [](AsyncWebServerRequest *request){
-
-        },
+        [](AsyncWebServerRequest *request){},
         [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
             static bool updateError = false;
             if (!index) {
-                Serial.printf("[OTA] Start update: %s (size unknown, streaming)\n", filename.c_str());
+                Serial.printf("[OTA] Start update: %s (streaming)\n", filename.c_str());
                 updateError = false;
                 if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
                     Update.printError(Serial);
@@ -326,7 +331,6 @@ void startPortal() {
                     Update.printError(Serial);
                     request->send(200, "text/plain", "Update processed, but reported an error: " + String(Update.errorString()));
                 } else {
-                    
                     request->send(200, "text/plain", "OK");
                     Serial.println("[OTA] Update success (no auto-restart). Use /reboot or power-cycle.");
                 }
@@ -334,6 +338,7 @@ void startPortal() {
         }
     );
 
+    // Explicit reboot endpoint
     server.on("/reboot", HTTP_POST, [](AsyncWebServerRequest *request){
         request->send(200, "text/plain", "Rebooting...");
         Serial.println("[WiFiMgr] Reboot requested via /reboot");
@@ -341,6 +346,7 @@ void startPortal() {
         ESP.restart();
     });
 
+    // Status
     server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request){
         String stat;
         if (WiFi.status() == WL_CONNECTED)
@@ -352,6 +358,7 @@ void startPortal() {
         request->send(200, "text/plain", stat);
     });
 
+    // Connect via GET (legacy)
     server.on("/connect", HTTP_GET, [](AsyncWebServerRequest *request){
         String ss, pw;
         if (request->hasParam("ssid")) ss = request->getParam("ssid")->value();
@@ -371,10 +378,10 @@ void startPortal() {
         request->send(200, "text/plain", "Connecting to: " + ssid);
     });
 
+    // Scan with caching + de-dup
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request){
         int n = WiFi.scanComplete();
         if (n == -2) {
-            
             WiFi.scanNetworks(true, true);
         } else if (n >= 0) {
             lastScanResults.clear();
@@ -384,7 +391,6 @@ void startPortal() {
                 if (s.length()) lastScanResults.push_back(s);
             }
             WiFi.scanDelete();
-            
             WiFi.scanNetworks(true, true);
         }
         std::sort(lastScanResults.begin(), lastScanResults.end());
@@ -416,13 +422,13 @@ void startPortal() {
         request->send(200, "text/plain", "WiFi credentials cleared (debug).");
     });
 
+    // Proper POST JSON body for ESPAsyncWebServer (Arduino 3.2.0)
     server.on("/save", HTTP_POST,
         [](AsyncWebServerRequest *request){},
         NULL,
         [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t, size_t) {
             String body; body.reserve(len);
             for (size_t i = 0; i < len; i++) body += (char)data[i];
-            // crude parse: {"ssid":"...","pass":"..."}
             int ssidStart = body.indexOf("\"ssid\":\"") + 8;
             int ssidEnd   = body.indexOf("\"", ssidStart);
             int passStart = body.indexOf("\"pass\":\"") + 8;
@@ -444,6 +450,7 @@ void startPortal() {
         }
     );
 
+    // ---------- LCD Emulator control ----------
     server.on("/lcd/state", HTTP_GET, [](AsyncWebServerRequest *request){
         bool en = LCDMonitor::isEmulatorEnabled();
         String j = String("{\"enabled\":") + (en ? "true" : "false") + "}";
@@ -456,6 +463,12 @@ void startPortal() {
     server.on("/lcd/disable", HTTP_ANY, [](AsyncWebServerRequest *request){
         LCDMonitor::setEmulatorEnabled(false);
         request->send(200, "text/plain", "LCD emulator disabled");
+    });
+
+    // ---------- UDP test (force a packet now) ----------
+    server.on("/udp/ping", HTTP_POST, [](AsyncWebServerRequest *request){
+        LCDMonitor::broadcastDisplayState(true);
+        request->send(200, "text/plain", "UDP test packet sent");
     });
 
     auto cp = [](AsyncWebServerRequest *r){
@@ -507,6 +520,12 @@ void loop() {
             Serial.print("[WiFiMgr] IP Address: ");
             Serial.println(WiFi.localIP());
             LedStat::setStatus(LedStatus::WifiConnected);
+
+            // ---- IMPORTANT: Legacy-like behavior: disable AP after STA connects ----
+            WiFi.softAPdisconnect(true);
+            WiFi.mode(WIFI_STA);
+            Serial.println("[WiFiMgr] AP disabled; running STA-only");
+
         } else if (millis() - lastAttempt > retryDelay) {
             connectAttempts++;
             if (connectAttempts >= maxAttempts) {
@@ -550,4 +569,4 @@ String getStatus() {
     return "Not connected";
 }
 
-} 
+} // namespace WiFiMgr

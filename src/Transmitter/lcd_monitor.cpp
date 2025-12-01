@@ -1,9 +1,16 @@
+// lcd_monitor.cpp
+//
+// HD44780 LCD Slave Device for Original Xbox Type-D firmware
+// ESP32 presents itself as US2066/SH1122 OLED controller at address 0x3C
+// Handles PrometheOS I2C protocol: [CONTROL_BYTE] [DATA_BYTE]
+
 #include "lcd_monitor.h"
 #include <Arduino.h>
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 
+// Private state
 static WiFiUDP lcdUdp;
 static bool udp_begun = false;
 static LCDMonitor::LCDState lcd_state;
@@ -12,7 +19,8 @@ static LCDMonitor::LCDState lcd_state;
 static const uint8_t LCD_I2C_ADDRESS = 0x3C;
 static bool i2c_slave_active = false;
 
-static volatile bool emulator_enabled = true; 
+// ---- Added: runtime emulator flag + remembered pins (no other behavior changed) ----
+static volatile bool emulator_enabled = true;   // toggled by WiFiMgr via setEmulatorEnabled()
 static int g_sda_pin = -1;
 static int g_scl_pin = -1;
 
@@ -31,11 +39,11 @@ static uint8_t ddram_address = 0x00;
 
 namespace LCDMonitor {
 
+    // Forward declarations
     static void processHD44780Command(uint8_t cmd);
     static void processHD44780Data(uint8_t data);
     static void updateCursorPosition();
     static char translateHD44780Character(uint8_t code);
-    static void ensureUdp();
 
     static void ensureUdp() {
         if (!udp_begun) {
@@ -44,14 +52,19 @@ namespace LCDMonitor {
         }
     }
 
+    // Simple ASCII character translation
     static char translateHD44780Character(uint8_t code) {
+        // Only allow standard printable ASCII characters
         if (code >= 0x20 && code <= 0x7E) {
             return (char)code;
         }
+        // Everything else becomes a space
         return ' ';
     }
 
+    // Update cursor position from DDRAM address
     static void updateCursorPosition() {
+        // PrometheOS uses these row offsets: { 0x00, 0x20, 0x40, 0x60 }
         if (ddram_address < 0x20) {
             lcd_state.cursor_row = 0;
             lcd_state.cursor_col = ddram_address;
@@ -65,17 +78,21 @@ namespace LCDMonitor {
             lcd_state.cursor_row = 3;
             lcd_state.cursor_col = ddram_address - 0x60;
         } else {
+            // Fallback
             lcd_state.cursor_row = 0;
             lcd_state.cursor_col = 0;
         }
         
+        // Clamp to valid display area
         if (lcd_state.cursor_row >= 4) lcd_state.cursor_row = 3;
         if (lcd_state.cursor_col >= 20) lcd_state.cursor_col = 19;
     }
 
+    // US2066/OLED I2C handler - PrometheOS protocol
     static void onI2CReceive(int numBytes) {
         Serial.printf("[LCD] RX: %d bytes\n", numBytes);
         
+        // US2066 protocol: pairs of [control_byte, data_byte]
         while (Wire1.available() >= 2) {
             uint8_t control_byte = Wire1.read();
             uint8_t data_byte = Wire1.read();
@@ -83,9 +100,11 @@ namespace LCDMonitor {
             Serial.printf("[LCD] Control: 0x%02X, Data: 0x%02X\n", control_byte, data_byte);
             
             if (control_byte == 0x80) {
+                // Command mode
                 Serial.printf("[LCD] -> Command: 0x%02X\n", data_byte);
                 processHD44780Command(data_byte);
             } else if (control_byte == 0x40) {
+                // Data mode (character)
                 Serial.printf("[LCD] -> Character: 0x%02X '%c'\n", data_byte, 
                              (data_byte >= 0x20 && data_byte <= 0x7E) ? (char)data_byte : '?');
                 processHD44780Data(data_byte);
@@ -94,6 +113,7 @@ namespace LCDMonitor {
             }
         }
         
+        // Handle any remaining single byte (shouldn't happen in normal operation)
         if (Wire1.available() > 0) {
             uint8_t lone_byte = Wire1.read();
             Serial.printf("[LCD] WARNING: Lone byte: 0x%02X\n", lone_byte);
@@ -102,12 +122,14 @@ namespace LCDMonitor {
         lcd_state.last_update_ms = millis();
     }
 
+    // I2C slave request handler
     static void onI2CRequest() {
         uint8_t status = 0x00 | (ddram_address & 0x7F);
         Wire1.write(status);
         Serial.printf("[LCD] Status: 0x%02X\n", status);
     }
 
+    // Process HD44780 command
     static void processHD44780Command(uint8_t cmd) {
         Serial.printf("[LCD] CMD: 0x%02X ", cmd);
         
@@ -120,8 +142,6 @@ namespace LCDMonitor {
             lcd_state.cursor_col = 0;
             ddram_address = 0x00;
             Serial.println("(Clear)");
-
-            broadcastDisplayState(true);
         }
         else if (cmd == HD44780_RETURN_HOME) {
             lcd_state.cursor_row = 0;
@@ -146,6 +166,7 @@ namespace LCDMonitor {
         }
     }
 
+    // Process HD44780 character data
     static void processHD44780Data(uint8_t data) {
         if (lcd_state.cursor_row < 4 && lcd_state.cursor_col < 20) {
             char ch = translateHD44780Character(data);
@@ -153,6 +174,7 @@ namespace LCDMonitor {
             
             Serial.printf("[LCD] '%c' at (%d,%d)\n", ch, lcd_state.cursor_row, lcd_state.cursor_col);
             
+            // Auto-increment cursor
             lcd_state.cursor_col++;
             if (lcd_state.cursor_col >= 20) {
                 lcd_state.cursor_col = 0;
@@ -168,44 +190,25 @@ namespace LCDMonitor {
         }
     }
 
-    static uint32_t s_last_hash = 0;
-
-    static uint32_t computeStateHash(const LCDState& st) {
-        uint32_t h = 2166136261u;
-        auto mix = [&](uint8_t b){ h ^= b; h *= 16777619u; };
-
-        for (int r = 0; r < 4; ++r) {
-            for (int c = 0; c < 20; ++c) {
-                mix(static_cast<uint8_t>(st.rows[r][c]));
-            }
-        }
-        mix(static_cast<uint8_t>(st.display_on));
-        mix(static_cast<uint8_t>(st.cursor_on));
-        mix(static_cast<uint8_t>(st.blink_on));
-        mix(static_cast<uint8_t>(st.cursor_row));
-        mix(static_cast<uint8_t>(st.cursor_col));
-        mix(static_cast<uint8_t>(ddram_address));
-        return h;
-    }
-
-    static uint8_t  s_boot_burst_left = 0;   
-    static uint32_t s_boot_last_ms     = 0;  
-
     void begin(int sda_pin, int scl_pin) {
+        // ---- Added: remember pins for runtime re-enable ----
         g_sda_pin = sda_pin;
         g_scl_pin = scl_pin;
 
+        // Initialize display state
         lcd_state = LCDState();
         for (int row = 0; row < 4; row++) {
             memset(lcd_state.rows[row], ' ', 20);
             lcd_state.rows[row][20] = '\0';
         }
         
-        strncpy(lcd_state.rows[0], "Theia OLED Emulator" , 20);
-        strncpy(lcd_state.rows[1], "Code:   Darkone83   ", 20);
-        strncpy(lcd_state.rows[2], "Team Resurgent      ", 20);
-        strncpy(lcd_state.rows[3], "(c) 2025            ", 20);
+        // Set initial display content
+        strncpy(lcd_state.rows[0], "Type D OLED Emulator", 20);
+        strncpy(lcd_state.rows[1], "   Code:Darkone83   ", 20);
+        strncpy(lcd_state.rows[2], "   Team Resurgent   ", 20);
+        strncpy(lcd_state.rows[3], "      (c) 2025      ", 20);
         
+        // Initialize state
         ddram_address = 0x00;
         lcd_state.detected_addr = LCD_I2C_ADDRESS;
         lcd_state.controller_type = "US2066";
@@ -213,6 +216,7 @@ namespace LCDMonitor {
         lcd_state.cursor_on = false;
         lcd_state.blink_on = false;
 
+        // ---- Added: early-out if emulator is disabled at startup (no changes below) ----
         if (!emulator_enabled) {
             i2c_slave_active = false;
             Serial.printf("[LCD] Emulator disabled at startup; I2C slave not started\n");
@@ -228,26 +232,22 @@ namespace LCDMonitor {
         i2c_slave_active = true;
         
         Serial.printf("[LCD] US2066 OLED emulator ready at 0x3C\n");
-
-        // Prime a short boot burst so any listeners get a guaranteed full-frame
-        s_boot_burst_left = 3; 
-        s_boot_last_ms    = millis();
-
+        
         broadcastDisplayState(true);
     }
 
     void loop() {
-        static uint32_t last_send_ms = 0;
-        static uint32_t last_heartbeat_ms = 0;
-
+        static uint32_t last_broadcast = 0;
         const uint32_t now = millis();
 
+        // ---- Added: apply runtime enable/disable without changing existing logic ----
         if (!emulator_enabled) {
             if (i2c_slave_active) {
                 Wire1.end();
                 i2c_slave_active = false;
                 Serial.println("[LCD] Emulator disabled -> I2C slave stopped");
             }
+            // Do not proceed to periodic broadcast while disabled
             return;
         } else if (!i2c_slave_active && g_sda_pin >= 0 && g_scl_pin >= 0) {
             Wire1.begin(LCD_I2C_ADDRESS, g_sda_pin, g_scl_pin, 0);
@@ -256,41 +256,26 @@ namespace LCDMonitor {
             i2c_slave_active = true;
             Serial.println("[LCD] Emulator enabled -> I2C slave started");
         }
-
-        if (s_boot_burst_left > 0) {
-            const uint32_t now_ms = millis();
-            if ((now_ms - s_boot_last_ms) >= 250) {
-                broadcastDisplayState(true);
-                s_boot_last_ms = now_ms;
-                s_boot_burst_left--;
-            }
-            return;
-        }
-
-        const uint32_t h = computeStateHash(lcd_state);
-        const bool changed   = (h != s_last_hash);
-        const bool interval  = (now - last_send_ms) > 100;   
-        const bool heartbeat = (now - last_heartbeat_ms) > 2000;
-
-        if ((changed && interval) || heartbeat) {
-            s_last_hash = h;
-            last_send_ms = now;
-            if (heartbeat) last_heartbeat_ms = now;
-            broadcastDisplayState(/*force*/true);  
+        
+        if (lcd_state.last_update_ms > last_broadcast && 
+            (now - last_broadcast) > 1000) {
+            broadcastDisplayState(false);
+            last_broadcast = now;
         }
     }
 
     void processI2CTransaction(const I2CTransaction& transaction) {
-        
+        // API compatibility - not used in slave mode
     }
 
     void decodeLCDCommand(uint8_t addr, const uint8_t* data, uint8_t len) {
-        
+        // API compatibility - not used in slave mode
     }
 
     void broadcastDisplayState(bool force) {
         ensureUdp();
         
+        // Create JSON exactly as Python script expects
         StaticJsonDocument<1024> doc;
         doc["type"] = "lcd20x4";
         doc["mode"] = "US2066";
@@ -304,12 +289,15 @@ namespace LCDMonitor {
         cursor["r"] = lcd_state.cursor_row;
         cursor["c"] = lcd_state.cursor_col;
         
+        // Make sure rows are clean strings
         JsonArray rows = doc.createNestedArray("rows");
         for (int i = 0; i < 4; i++) {
+            // Ensure each row is exactly 20 characters and null-terminated
             char clean_row[21];
             memcpy(clean_row, lcd_state.rows[i], 20);
             clean_row[20] = '\0';
             
+            // Replace any non-printable characters with spaces
             for (int j = 0; j < 20; j++) {
                 if (clean_row[j] < 0x20 || clean_row[j] > 0x7E) {
                     clean_row[j] = ' ';
@@ -363,12 +351,14 @@ namespace LCDMonitor {
         return i2c_slave_active;
     }
 
+    // ---- Added: minimal public APIs to toggle/query the emulator flag ----
     void setEmulatorEnabled(bool enabled) {
         emulator_enabled = enabled;
+        // loop() will apply start/stop on next tick
     }
 
     bool isEmulatorEnabled() {
         return emulator_enabled;
     }
 
-} 
+} // namespace LCDMonitor

@@ -11,5 +11,5 @@ enum class LedStatus {
 namespace LedStat {
     void begin();
     void setStatus(LedStatus status);
-    void loop(); 
+    void loop();
 }
