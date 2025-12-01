@@ -95,6 +95,13 @@ Its recommented to wire directly to the LPC if your XBOX and to keep the wire ru
 |  4  |    SDA     | SDA Pin 14 |
 |  5  |    SCL     | SCL Pin 13 |
 
+
+Transmitter Pins:
+
+<img src="https://github.com/Darkone83/Theia/blob/main/images/pins.png" width=300>
+
+XBOX LPC Pins:
+
 <img src="https://github.com/Darkone83/Theia/blob/main/images/lpc_pinouts.png" width=300>
 
 Reciever:
