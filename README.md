@@ -51,6 +51,14 @@ Indicates:
 
 ---
 
+## Purchase:
+
+OLED Emulator module: Darkone Customs (coming soon!)
+
+OLED kit: Dakrone Customs (coming soon!)
+
+---
+
 ## Compiling the Firmware
 
 1. Install **Arduino IDE 2.x**).
