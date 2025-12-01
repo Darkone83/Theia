@@ -1,8 +1,15 @@
 <a href="https://discord.gg/k2BQhSJ"><img src="https://github.com/Darkone83/ModXo-Basic/blob/main/Images/discord.svg"></a>
 
+<div align=center>
+  <img src="https://github.com/Darkone83/Theia/blob/main/images/theia.png" width=400>
+
+  <img src="https://github.com/Darkone83/Theia/blob/main/images/DC%20logo.png" width=200><img src="https://github.com/Darkone83/Theia/blob/main/images/team-resurgent.png" width=200>
+</div>
+
+
 # Theia – OLED Web Emulator for Original Xbox
 
-A Wi-Fi enabled ESP32-S3 emulator for the Xbox 20x4 US2066/HD44780 display.
+A Wi-Fi enabled ESP32-S3 emulator for the Xbox LCD display output.
 
 ## Overview
 
@@ -80,9 +87,11 @@ Its recommented to wire directly to the LPC if your XBOX and to keep the wire ru
 |  4  |    SDA     | SDA Pin 14 |
 |  5  |    SCL     | SCL Pin 13 |
 
+<img src="https://github.com/Darkone83/Theia/blob/main/images/lpc_pinouts.png" width=300>
+
 Reciever:
 
-**Notes:** IF getting your OWN PCB's made select 1.0mm thickness for the US2066 backpack; otherwise, you may have fitment issues
+**Notes:** IF getting your OWN PCB's made select 1.0mm thickness for the US2066 backpack; otherwise, you may have fitment issues. This os only compatable with the NewHaven Display:  NHD-0420CW
 
 Solder your backpack to the display, then connect 5V and GND to the controller port
 
@@ -127,7 +136,7 @@ LCD state is broadcast as JSON over UDP on port 35182 following the Type-D viewe
 - Original Xbox (all revisions)
 - PrometheOS / HD44780 LCD systems
 - Type-D Viewer (PC)
-- Their (iOS / Android)
+- Theia (iOS / Android)
 
 ## Known Good Boards
 
