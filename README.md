@@ -51,6 +51,8 @@ Indicates:
 
 ---
 
+[![Download on the App Store](https://github.com/Darkone83/Their/blob/main/images/download.svg)](https://apps.apple.com/us/app/theia-oled-viewer/id6755984567)
+
 ## Purchase:
 
 OLED Emulator module: Darkone Customs (coming soon!)
