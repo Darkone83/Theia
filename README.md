@@ -55,7 +55,7 @@ Indicates:
 
 OLED Emulator module: Darkone Customs (coming soon!)
 
-OLED kit: Dakrone Customs (coming soon!)
+OLED kit: <a href="https://www.darkonecustoms.com/store/p/theia-wireless-oled-emulator">Dakrone Customs</a>
 
 ---
 
