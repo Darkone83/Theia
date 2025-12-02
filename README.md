@@ -49,6 +49,9 @@ Indicates:
 - Wi-Fi failure
 - UDP transmit activity
 
+### US2066 Support
+Wireless transmission to a NewHaven US2066 OLED for actual hardware support with the supported backpack
+
 ---
 
 [![Download on the App Store](https://github.com/Darkone83/Their/blob/main/images/download.svg)](https://apps.apple.com/us/app/theia-oled-viewer/id6755984567)
@@ -57,7 +60,7 @@ Indicates:
 
 OLED Emulator module: Darkone Customs (coming soon!)
 
-OLED kit: Dakrone Customs (coming soon!)
+OLED kit: <a href="https://www.darkonecustoms.com/store/p/theia-wireless-oled-emulator">Dakrone Customs</a>
 
 ---
 
@@ -96,6 +99,13 @@ Its recommented to wire directly to the LPC if your XBOX and to keep the wire ru
 |  3  |   3.3V     | 3.3V Pin 9 or 13 |
 |  4  |    SDA     | SDA Pin 14 |
 |  5  |    SCL     | SCL Pin 13 |
+
+
+Transmitter Pins:
+
+<img src="https://github.com/Darkone83/Theia/blob/main/images/pins.png" width=300>
+
+XBOX LPC Pins:
 
 <img src="https://github.com/Darkone83/Theia/blob/main/images/lpc_pinouts.png" width=300>
 
