@@ -49,6 +49,9 @@ Indicates:
 - Wi-Fi failure
 - UDP transmit activity
 
+### US2066 Support
+Wireless transmission to a NewHaven US2066 OLED for actual hardware support with the supported backpack
+
 ---
 
 ## Purchase:
